@@ -1,5 +1,7 @@
 # Juego de la Vida · Conway
 
+[![Ver en vivo](https://img.shields.io/badge/▶%20Ver%20en%20vivo-GitHub%20Pages-4ade80?style=for-the-badge&logo=github)](https://ivanrios.github.io/juego_de_la_vida/)
+
 Implementación del autómata celular de John Conway en un único archivo HTML, ejecutable directamente en el navegador sin dependencias.
 
 ---
