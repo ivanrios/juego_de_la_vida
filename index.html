@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de la Vida · Conway</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0d0d14;
+            color: #ccd;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 8px 16px;
+            border-bottom: 1px solid #1e1e30;
+            flex-shrink: 0;
+        }
+
+        h1 { font-size: 15px; font-weight: 500; color: #7788aa; letter-spacing: 0.5px; }
+
+        .stat { font-size: 13px; color: #445566; }
+        .stat span { color: #88aacc; }
+
+        #canvas-wrap {
+            flex: 1;
+            overflow: hidden;
+            cursor: crosshair;
+            position: relative;
+        }
+
+        canvas { display: block; }
+
+        #controls {
+            border-top: 1px solid #1e1e30;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        button {
+            background: #131320;
+            color: #99aacc;
+            border: 1px solid #2a2a40;
+            padding: 5px 13px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.12s;
+        }
+        button:hover { background: #1c1c30; border-color: #3a3a55; }
+        button.primary { background: #0d2a1a; border-color: #2a6640; color: #4ade80; }
+        button.primary:hover { background: #132e1e; }
+
+        select {
+            background: #131320;
+            color: #99aacc;
+            border: 1px solid #2a2a40;
+            padding: 5px 8px;
+            border-radius: 5px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .group { display: flex; align-items: center; gap: 8px; }
+        .label { font-size: 12px; color: #445566; }
+        .sep { color: #2a2a40; font-size: 18px; }
+
+        input[type=range] {
+            width: 80px;
+            accent-color: #4ade80;
+        }
+
+        .val { font-size: 12px; color: #6677aa; min-width: 42px; }
+
+        #pattern-desc {
+            font-size: 12px;
+            color: #4466aa;
+            padding: 0 16px 6px;
+            flex-shrink: 0;
+        }
+
+        /* ── Info panel ── */
+        #info-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 18, 0.88);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        #info-box {
+            background: #10101c;
+            border: 1px solid #22223a;
+            border-radius: 10px;
+            padding: 32px 36px;
+            max-width: 520px;
+            width: 90%;
+        }
+
+        #info-box h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #4ade80;
+            margin-bottom: 10px;
+        }
+
+        #info-box p {
+            font-size: 14px;
+            line-height: 1.65;
+            color: #8899bb;
+            margin-bottom: 20px;
+        }
+
+        #info-box h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #445566;
+            margin-bottom: 10px;
+        }
+
+        .rules {
+            display: grid;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .rule {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .rule-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .rule-icon.survive { background: #0d2a1a; color: #4ade80; }
+        .rule-icon.die     { background: #2a0d0d; color: #f87171; }
+        .rule-icon.born    { background: #0d1a2a; color: #60a5fa; }
+
+        .rule-text { font-size: 13px; color: #8899bb; line-height: 1.5; }
+        .rule-text strong { color: #aabbcc; font-weight: 500; }
+
+        #btn-start {
+            width: 100%;
+            padding: 10px;
+            background: #0d2a1a;
+            border: 1px solid #2a6640;
+            color: #4ade80;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            letter-spacing: 0.3px;
+            transition: background 0.15s;
+        }
+        #btn-start:hover { background: #132e1e; }
+    </style>
+</head>
+<body>
+
+<!-- ── Intro overlay ────────────────────────────────────────────── -->
+<div id="info-overlay">
+    <div id="info-box">
+        <h2>Juego de la Vida</h2>
+        <p>
+            Creado por el matemático <strong style="color:#aabbcc">John Conway</strong> en 1970,
+            es un <em>autómata celular</em>: un universo de cuadrícula donde cada celda
+            está <strong style="color:#4ade80">viva</strong> o muerta,
+            y el tiempo avanza en generaciones discretas.
+            No hay jugadores ni objetivos — solo cuatro reglas simples que dan lugar a
+            una complejidad infinita.
+        </p>
+
+        <h3>Las cuatro reglas</h3>
+        <div class="rules">
+            <div class="rule">
+                <div class="rule-icon survive">⚡</div>
+                <div class="rule-text"><strong>Supervivencia:</strong> una celda viva con 2 o 3 vecinos vivos sobrevive a la siguiente generación.</div>
+            </div>
+            <div class="rule">
+                <div class="rule-icon die">💀</div>
+                <div class="rule-text"><strong>Soledad:</strong> una celda viva con menos de 2 vecinos muere de aislamiento.</div>
+            </div>
+            <div class="rule">
+                <div class="rule-icon die">🔥</div>
+                <div class="rule-text"><strong>Superpoblación:</strong> una celda viva con más de 3 vecinos muere por exceso.</div>
+            </div>
+            <div class="rule">
+                <div class="rule-icon born">✨</div>
+                <div class="rule-text"><strong>Nacimiento:</strong> una celda muerta con exactamente 3 vecinos vivos nace.</div>
+            </div>
+        </div>
+
+        <button id="btn-start">Comenzar →</button>
+    </div>
+</div>
+
+<header>
+    <h1>Juego de la Vida · Conway</h1>
+    <div class="stat">Gen <span id="gen">0</span></div>
+    <div class="stat">Vivas <span id="pop">0</span></div>
+    <div class="stat" style="margin-left:auto; font-size:11px; color:#334">Clic/arrastrar para dibujar · Espacio = pausa</div>
+</header>
+
+<div id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+</div>
+
+<div id="pattern-desc"></div>
+
+<div id="controls">
+    <button id="btn-play">▶ Jugar</button>
+    <button id="btn-step">⏭ Paso</button>
+    <button id="btn-clear">✕ Limpiar</button>
+
+    <span class="sep">|</span>
+
+    <div class="group">
+        <span class="label">Patrón</span>
+        <select id="sel-pattern">
+            <option value="random">Aleatorio</option>
+            <option value="glider">Glider</option>
+            <option value="gun">Cañón de Gliders (Gosper)</option>
+            <option value="rpentomino">R-pentominó</option>
+            <option value="pulsar">Pulsar</option>
+            <option value="acorn">Bellota (Acorn)</option>
+            <option value="diehard">Diehard</option>
+            <option value="lwss">Nave espacial (LWSS)</option>
+            <option value="infinite">Crecimiento infinito</option>
+        </select>
+        <button id="btn-load">Cargar</button>
+    </div>
+
+    <span class="sep">|</span>
+
+    <div class="group">
+        <span class="label">Velocidad</span>
+        <input type="range" id="rng-speed" min="1" max="60" value="12">
+        <span class="val" id="lbl-speed">12 fps</span>
+    </div>
+
+    <div class="group">
+        <span class="label">Celda</span>
+        <input type="range" id="rng-cell" min="4" max="24" value="12">
+        <span class="val" id="lbl-cell">12 px</span>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+// ─── State ───────────────────────────────────────────────────────────────────
+
+const canvas  = document.getElementById('canvas');
+const ctx     = canvas.getContext('2d');
+const wrap    = document.getElementById('canvas-wrap');
+
+let CELL = 12;
+let ROWS = 0, COLS = 0;
+let cells = new Set();
+let running = false;
+let generation = 0;
+let fps = 12;
+let frameMs = 1000 / fps;
+let lastFrameTs = 0;
+let animId = null;
+
+// ─── Patterns ────────────────────────────────────────────────────────────────
+
+const PATTERNS = {
+    random: {
+        desc: 'Relleno aleatorio al 30 %. El caos emergente produce todas las estructuras conocidas.',
+        load() {
+            cells = new Set();
+            for (let r = 0; r < ROWS; r++)
+                for (let c = 0; c < COLS; c++)
+                    if (Math.random() < 0.3) cells.add(key(r, c));
+        },
+    },
+
+    glider: {
+        desc: 'El patrón más famoso: una pequeña nave que viaja en diagonal indefinidamente.',
+        shape: [[0,1],[1,2],[2,0],[2,1],[2,2]],
+    },
+
+    gun: {
+        desc: 'Cañón de Gosper (1970): el primer patrón conocido con crecimiento infinito de población. Dispara un glider cada 30 generaciones.',
+        shape: [
+            [0,24],
+            [1,22],[1,24],
+            [2,12],[2,13],[2,20],[2,21],[2,34],[2,35],
+            [3,11],[3,15],[3,20],[3,21],[3,34],[3,35],
+            [4,0],[4,1],[4,10],[4,16],[4,20],[4,21],
+            [5,0],[5,1],[5,10],[5,14],[5,16],[5,17],[5,22],[5,24],
+            [6,10],[6,16],[6,24],
+            [7,11],[7,15],
+            [8,12],[8,13],
+        ],
+    },
+
+    rpentomino: {
+        desc: 'Solo 5 células, pero tarda 1 103 generaciones en estabilizarse, generando gliders en el proceso.',
+        shape: [[0,1],[0,2],[1,0],[1,1],[2,1]],
+    },
+
+    pulsar: {
+        desc: 'El oscilador más bello: período 3, simetría cuádruple, 48 células en su estado inicial.',
+        shape: [
+            [0,2],[0,3],[0,4],[0,8],[0,9],[0,10],
+            [2,0],[2,5],[2,7],[2,12],
+            [3,0],[3,5],[3,7],[3,12],
+            [4,0],[4,5],[4,7],[4,12],
+            [5,2],[5,3],[5,4],[5,8],[5,9],[5,10],
+            [7,2],[7,3],[7,4],[7,8],[7,9],[7,10],
+            [8,0],[8,5],[8,7],[8,12],
+            [9,0],[9,5],[9,7],[9,12],
+            [10,0],[10,5],[10,7],[10,12],
+            [12,2],[12,3],[12,4],[12,8],[12,9],[12,10],
+        ],
+    },
+
+    acorn: {
+        desc: 'Solo 7 células que tardan 5 206 generaciones en estabilizarse, produciendo 633 células vivas y 13 gliders.',
+        shape: [[0,1],[1,3],[2,0],[2,1],[2,4],[2,5],[2,6]],
+    },
+
+    diehard: {
+        desc: 'Patrón que desaparece completamente en exactamente 130 generaciones, sin dejar rastro.',
+        shape: [[0,6],[1,0],[1,1],[2,1],[2,5],[2,6],[2,7]],
+    },
+
+    lwss: {
+        desc: 'Nave espacial ligera (LWSS): el oscilador que se desplaza más pequeño posible, período 4.',
+        shape: [
+            [0,1],[0,2],[0,3],[0,4],
+            [1,0],[1,4],
+            [2,4],
+            [3,0],[3,3],
+        ],
+    },
+
+    infinite: {
+        desc: 'Patrón de crecimiento infinito de solo 10 células. La población crece sin límite.',
+        shape: [
+            [0,0],[0,1],[0,2],[0,3],[0,4],
+            [0,6],[0,7],[0,8],[0,9],[0,10],
+        ],
+    },
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function key(r, c) { return `${r},${c}`; }
+
+function fromKey(k) {
+    const i = k.indexOf(',');
+    return [+k.slice(0, i), +k.slice(i + 1)];
+}
+
+function loadShape(shape) {
+    cells = new Set();
+    let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
+    for (const [r, c] of shape) {
+        if (r < minR) minR = r; if (r > maxR) maxR = r;
+        if (c < minC) minC = c; if (c > maxC) maxC = c;
+    }
+    const offR = Math.round((ROWS - (maxR - minR + 1)) / 2) - minR;
+    const offC = Math.round((COLS - (maxC - minC + 1)) / 2) - minC;
+    for (const [r, c] of shape) {
+        const nr = r + offR, nc = c + offC;
+        if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) cells.add(key(nr, nc));
+    }
+}
+
+// ─── Simulation ──────────────────────────────────────────────────────────────
+
+function step() {
+    const counts = new Map();
+
+    for (const k of cells) {
+        const [r, c] = fromKey(k);
+        if (!counts.has(k)) counts.set(k, 0);
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (!dr && !dc) continue;
+                const nr = r + dr, nc = c + dc;
+                if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+                const nk = key(nr, nc);
+                counts.set(nk, (counts.get(nk) || 0) + 1);
+            }
+        }
+    }
+
+    const next = new Set();
+    for (const [k, n] of counts) {
+        if (cells.has(k) ? n === 2 || n === 3 : n === 3) next.add(k);
+    }
+
+    cells = next;
+    generation++;
+}
+
+// ─── Rendering ───────────────────────────────────────────────────────────────
+
+function draw() {
+    ctx.fillStyle = '#0d0d14';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (CELL >= 7) {
+        ctx.strokeStyle = '#12121e';
+        ctx.lineWidth = 0.5;
+        for (let r = 0; r <= ROWS; r++) {
+            ctx.beginPath();
+            ctx.moveTo(0, r * CELL);
+            ctx.lineTo(canvas.width, r * CELL);
+            ctx.stroke();
+        }
+        for (let c = 0; c <= COLS; c++) {
+            ctx.beginPath();
+            ctx.moveTo(c * CELL, 0);
+            ctx.lineTo(c * CELL, canvas.height);
+            ctx.stroke();
+        }
+    }
+
+    const pad = CELL >= 6 ? 1 : 0;
+    const sz  = CELL - pad;
+
+    ctx.fillStyle = '#4ade80';
+    for (const k of cells) {
+        const [r, c] = fromKey(k);
+        ctx.fillRect(c * CELL + pad, r * CELL + pad, sz, sz);
+    }
+
+    document.getElementById('gen').textContent = generation;
+    document.getElementById('pop').textContent = cells.size;
+}
+
+// ─── Loop ────────────────────────────────────────────────────────────────────
+
+function loop(ts) {
+    animId = requestAnimationFrame(loop);
+    if (ts - lastFrameTs < frameMs) return;
+    lastFrameTs = ts;
+    step();
+    draw();
+}
+
+function play() {
+    if (running) return;
+    running = true;
+    const btn = document.getElementById('btn-play');
+    btn.textContent = '⏸ Pausar';
+    btn.classList.add('primary');
+    animId = requestAnimationFrame(loop);
+}
+
+function pause() {
+    if (!running) return;
+    running = false;
+    const btn = document.getElementById('btn-play');
+    btn.textContent = '▶ Jugar';
+    btn.classList.remove('primary');
+    cancelAnimationFrame(animId);
+}
+
+// ─── Canvas resize ───────────────────────────────────────────────────────────
+
+function resize() {
+    COLS = Math.floor(wrap.clientWidth  / CELL);
+    ROWS = Math.floor(wrap.clientHeight / CELL);
+    canvas.width  = COLS * CELL;
+    canvas.height = ROWS * CELL;
+    draw();
+}
+
+// ─── Mouse drawing ───────────────────────────────────────────────────────────
+
+let painting = false;
+let paintMode = true;
+
+function cellAt(e) {
+    const r = canvas.getBoundingClientRect();
+    return [
+        Math.floor((e.clientY - r.top)  / CELL),
+        Math.floor((e.clientX - r.left) / CELL),
+    ];
+}
+
+function paintCell(r, c) {
+    if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return;
+    const k = key(r, c);
+    paintMode ? cells.add(k) : cells.delete(k);
+    draw();
+}
+
+canvas.addEventListener('mousedown', e => {
+    const [r, c] = cellAt(e);
+    const k = key(r, c);
+    paintMode = !cells.has(k);
+    painting = true;
+    paintCell(r, c);
+});
+
+canvas.addEventListener('mousemove', e => {
+    if (!painting) return;
+    const [r, c] = cellAt(e);
+    paintCell(r, c);
+});
+
+window.addEventListener('mouseup', () => { painting = false; });
+
+// ─── Controls ────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-play').addEventListener('click', () => {
+    running ? pause() : play();
+});
+
+document.getElementById('btn-step').addEventListener('click', () => {
+    pause();
+    step();
+    draw();
+});
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+    pause();
+    cells = new Set();
+    generation = 0;
+    draw();
+});
+
+document.getElementById('btn-load').addEventListener('click', loadPattern);
+document.getElementById('sel-pattern').addEventListener('change', updateDesc);
+
+function loadPattern() {
+    pause();
+    generation = 0;
+    const id = document.getElementById('sel-pattern').value;
+    const p  = PATTERNS[id];
+    if (p.load) p.load();
+    else loadShape(p.shape);
+    draw();
+}
+
+function updateDesc() {
+    const id = document.getElementById('sel-pattern').value;
+    document.getElementById('pattern-desc').textContent = PATTERNS[id].desc;
+}
+
+document.getElementById('rng-speed').addEventListener('input', e => {
+    fps = +e.target.value;
+    frameMs = 1000 / fps;
+    document.getElementById('lbl-speed').textContent = `${fps} fps`;
+});
+
+document.getElementById('rng-cell').addEventListener('input', e => {
+    CELL = +e.target.value;
+    document.getElementById('lbl-cell').textContent = `${CELL} px`;
+    resize();
+});
+
+document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.code === 'Space')  { e.preventDefault(); running ? pause() : play(); }
+    if (e.code === 'KeyS')   { pause(); step(); draw(); }
+    if (e.code === 'KeyC')   { document.getElementById('btn-clear').click(); }
+});
+
+window.addEventListener('resize', resize);
+
+// ─── Intro overlay ───────────────────────────────────────────────────────────
+
+document.getElementById('btn-start').addEventListener('click', () => {
+    document.getElementById('info-overlay').style.display = 'none';
+    canvas.focus();
+});
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+
+resize();
+updateDesc();
+loadPattern();
+</script>
+</body>
+</html>
